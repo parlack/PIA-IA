@@ -52,8 +52,11 @@ Supervisord supervisa los tres procesos y los reinicia si caen.
 
 ### 2.3 Healthcheck
 
-El Dockerfile ya trae `HEALTHCHECK`. Coolify lo respeta automaticamente.
-Si quieres uno manual en Coolify: `GET /api/health` → debe devolver `200`.
+El Dockerfile ya trae `HEALTHCHECK` (curl a `/api/health`). Coolify lo respeta automaticamente.
+
+- `GET /api/health` → **liveness** (no toca BD). Coolify usa este.
+- `GET /api/health/db` → **readiness** (verifica `SELECT 1`). Solo para diagnostico
+  manual; si la BD se cae, Coolify NO debe matar el contenedor.
 
 ### 2.4 Deploy
 
@@ -61,7 +64,8 @@ Si quieres uno manual en Coolify: `GET /api/health` → debe devolver `200`.
 2. Tail de logs: Coolify → Logs (combinados de supervisord).
 3. Verifica:
    - `https://piaia.yolani.co/`                → web Nuxt
-   - `https://piaia.yolani.co/api/health`      → `{"ok": true, ...}`
+   - `https://piaia.yolani.co/api/health`      → `{"status": "ok"}` (liveness)
+   - `https://piaia.yolani.co/api/health/db`   → `{"status": "ok", "database": "connected"}` (readiness)
    - `https://piaia.yolani.co/docs`            → Swagger
 
 ## 3. Migracion de BD (rol medico)

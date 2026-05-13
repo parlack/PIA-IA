@@ -34,7 +34,7 @@ export const yua: Messages = {
 
   nav: {
     menu:          "Tuukulil",
-    summary:       "Áanalte'",
+    summary:       "Otoch",
     vaccines:      "Vakunas",
     allergies:     "Ba'al ku k'oja'antik",
     aefi:          "Ya'achuun tu pak'maj",

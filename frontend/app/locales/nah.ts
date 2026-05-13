@@ -34,7 +34,7 @@ export const nah: Messages = {
 
   nav: {
     menu:          'Tlanahuatil',
-    summary:       'Amatlahkuilolli',
+    summary:       'Chan',
     vaccines:      'Tepahti',
     allergies:     'Tlen tech kohkoa',
     aefi:          'Ipanpa vakuna',

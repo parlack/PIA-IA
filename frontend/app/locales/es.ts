@@ -34,7 +34,7 @@ export const es = {
 
   nav: {
     menu:          'Menu',
-    summary:       'Resumen',
+    summary:       'Inicio',
     vaccines:      'Vacunas',
     allergies:     'Alergias',
     aefi:          'Eventos adversos',
