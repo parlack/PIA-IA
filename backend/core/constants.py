@@ -1,6 +1,10 @@
 """Constantes compartidas del dominio."""
 
-TIPOS_MENSAJE = ("informacion", "advertencia", "urgente")
+TIPOS_MENSAJE = ("informacion", "advertencia", "urgente", "recordatorio")
+
+REMITENTE_SISTEMA_DEFAULT = "XEXX010101HNEXXXA4"
+
+AEFI_VENTANA_DIAS = 30
 
 GRUPOS_PRIORITARIOS = ("ninguno", "adulto_mayor", "embarazada", "personal_salud", "cronico")
 

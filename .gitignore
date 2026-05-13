@@ -3,6 +3,10 @@
 .env.*
 !.env.example
 
+# Docker compose local (puede contener credenciales)
+docker-compose.yml
+docker-compose.override.yml
+
 # Python
 __pycache__/
 *.pyc

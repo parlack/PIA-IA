@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import Swal from 'sweetalert2'
 
+definePageMeta({ middleware: 'ciudadano' })
+useHead({ title: 'Mi información' })
+
 const router = useRouter()
 const api = useApi()
 

@@ -1,11 +1,22 @@
 <script setup lang="ts">
 import Swal from 'sweetalert2'
-import { esRolAdmin, normalizarRolParaStorage } from '~/utils/rol'
+
+definePageMeta({ middleware: 'admin' })
+useHead({ title: 'Panel administrativo' })
 
 const api = useApi()
 
-const forbidden = ref(false)
-const tab = ref<'stats' | 'usuarios' | 'catalogo' | 'mensaje'>('stats')
+const tab = ref<'stats' | 'usuarios' | 'catalogo' | 'mensaje' | 'reportes' | 'epidemio' | 'aefi' | 'auditoria'>('stats')
+
+const cobUnidad = ref<any[]>([])
+const cobEstado = ref<any[]>([])
+const cobGrupo = ref<any[]>([])
+const cobVacuna = ref<any[]>([])
+const callRecall = ref<any[]>([])
+const aefiList = ref<any[]>([])
+const auditoria = ref<any[]>([])
+const auditFiltroAccion = ref('')
+const busyCallRecall = ref(false)
 
 const stats = ref<{
   total_usuarios: number
@@ -346,21 +357,6 @@ async function enviarMensajeAdmin() {
 }
 
 onMounted(async () => {
-  const curp = localStorage.getItem('curp')
-  let miRol = normalizarRolParaStorage(localStorage.getItem('rol'))
-  if (curp) {
-    try {
-      const u = await api.getUsuario(curp) as { rol?: string }
-      if (u?.rol != null && u.rol !== '') {
-        miRol = normalizarRolParaStorage(u.rol)
-        localStorage.setItem('rol', miRol)
-      }
-    } catch { /* */ }
-  }
-  if (!esRolAdmin(miRol)) {
-    forbidden.value = true
-    return
-  }
   try {
     await Promise.all([refreshStats(), refreshUnidades(), refreshUsuarios(), refreshCatalogo()])
   } catch (e) {
@@ -368,36 +364,81 @@ onMounted(async () => {
   }
 })
 
+async function refreshReportes() {
+  const [u, e, g, v] = await Promise.all([
+    api.reporteCoberturaUnidad(),
+    api.reporteCoberturaEstado(),
+    api.reporteCoberturaGrupo(),
+    api.reporteCoberturaVacuna(),
+  ])
+  cobUnidad.value = u
+  cobEstado.value = e
+  cobGrupo.value = g
+  cobVacuna.value = v
+}
+
+async function refreshCallRecall(dias = 30) {
+  callRecall.value = await api.reporteCallRecall(dias)
+}
+
+async function dispararCallRecall() {
+  const r = await Swal.fire({
+    title: '¿Disparar call & recall?',
+    html: `Se enviaran push y un mensaje al buzon de cada ciudadano con esquema vencido (mas de 30 dias).`,
+    icon: 'question', showCancelButton: true,
+    confirmButtonColor: '#0E5037', cancelButtonColor: '#6B6A60',
+    confirmButtonText: 'Disparar ahora', cancelButtonText: 'Cancelar',
+  })
+  if (!r.isConfirmed) return
+  busyCallRecall.value = true
+  try {
+    const res = await api.dispararCallRecall(30) as any
+    await Swal.fire({
+      icon: 'success', title: 'Campania ejecutada',
+      html: `Candidatos: <b>${res.candidatos}</b><br/>Push: ${res.push_result?.enviados ?? 0}`,
+      confirmButtonColor: '#0E5037',
+    })
+  } catch (e: any) {
+    await Swal.fire({ icon: 'error', title: 'Error', text: e.message, confirmButtonColor: '#0E5037' })
+  } finally {
+    busyCallRecall.value = false
+  }
+}
+
+async function refreshAefi() {
+  aefiList.value = await api.listarAefi({ limit: 200 })
+}
+
+async function refreshAuditoria() {
+  auditoria.value = await api.listarAuditoria({
+    accion: auditFiltroAccion.value || undefined,
+    limit: 100,
+  })
+}
+
 watch(() => tab.value, (t) => {
   if (t === 'usuarios') { refreshUnidades(); refreshUsuarios() }
   if (t === 'catalogo') refreshCatalogo()
+  if (t === 'reportes') { refreshReportes(); refreshCallRecall(30) }
+  if (t === 'aefi') refreshAefi()
+  if (t === 'auditoria') refreshAuditoria()
 })
 
 const tabs = [
-  { key: 'stats',    label: 'Estadisticas', num: '01' },
-  { key: 'usuarios', label: 'Usuarios',     num: '02' },
-  { key: 'catalogo', label: 'Catalogo',     num: '03' },
-  { key: 'mensaje',  label: 'Mensajes',     num: '04' },
+  { key: 'stats',     label: 'Estadisticas',  num: '01' },
+  { key: 'epidemio',  label: 'Epidemiologia', num: '02' },
+  { key: 'reportes',  label: 'Reportes',      num: '03' },
+  { key: 'usuarios',  label: 'Usuarios',      num: '04' },
+  { key: 'catalogo',  label: 'Catalogo',      num: '05' },
+  { key: 'aefi',      label: 'AEFI',          num: '06' },
+  { key: 'mensaje',   label: 'Mensajes',      num: '07' },
+  { key: 'auditoria', label: 'Auditoria',     num: '08' },
 ]
 </script>
 
 <template>
   <div class="min-h-screen">
-
-    <div v-if="forbidden" class="flex items-center justify-center py-32 px-4">
-      <div class="text-center max-w-md">
-        <p class="eyebrow" style="color: var(--wine)">Acceso denegado</p>
-        <h1 class="font-display text-4xl mt-3" style="font-weight: 400">
-          No tienes <em class="italic">permisos.</em>
-        </h1>
-        <p class="mt-3 text-sm" style="color: var(--muted)">Esta seccion es exclusiva para administradores.</p>
-        <NuxtLink to="/dashboard" class="btn-ghost inline-flex items-center gap-2 mt-8 text-sm">
-          <span class="font-mono">←</span> Volver al inicio
-        </NuxtLink>
-      </div>
-    </div>
-
-    <div v-else class="max-w-6xl mx-auto px-6 lg:px-12 py-10 lg:py-14">
+    <div class="max-w-6xl mx-auto px-6 lg:px-12 py-10 lg:py-14">
 
       <!-- Hero -->
       <header class="border-b-2 pb-8 mb-10" style="border-color: var(--ink)">
@@ -778,6 +819,196 @@ const tabs = [
             {{ busy === 'msg' ? 'Enviando…' : 'Enviar mensaje' }}
           </button>
         </div>
+      </section>
+
+      <!-- ===== EPIDEMIOLOGIA ===== -->
+      <section v-if="tab === 'epidemio'">
+        <EpidemioCharts />
+      </section>
+
+      <!-- ===== REPORTES ===== -->
+      <section v-if="tab === 'reportes'">
+        <div class="border-b pb-2 mb-6" style="border-color: var(--ink)">
+          <h2 class="font-display text-2xl" style="font-weight: 500">Reportes operativos</h2>
+        </div>
+
+        <!-- Cobertura por estado -->
+        <div class="mb-10">
+          <p class="eyebrow mb-3">Cobertura por estado</p>
+          <table class="w-full text-sm">
+            <thead>
+              <tr style="border-bottom: 2px solid var(--ink)">
+                <th class="text-left py-2 pr-4 eyebrow">Estado</th>
+                <th class="text-right py-2 px-2 eyebrow">Usuarios</th>
+                <th class="text-right py-2 px-2 eyebrow">Dosis</th>
+                <th class="text-right py-2 pl-2 eyebrow" style="width:35%">Distribucion</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="r in cobEstado" :key="r.estado"
+                  style="border-bottom: 1px solid var(--border-soft)">
+                <td class="py-2.5 pr-4" style="font-weight: 500">{{ r.estado }}</td>
+                <td class="py-2.5 px-2 text-right tabular">{{ r.usuarios }}</td>
+                <td class="py-2.5 px-2 text-right tabular">{{ r.dosis }}</td>
+                <td class="py-2.5 pl-2">
+                  <div class="w-full h-[6px]" style="background: var(--bone)">
+                    <div class="h-[6px]"
+                         :style="`width: ${Math.min(100, (r.dosis / Math.max(1, cobEstado[0].dosis)) * 100)}%; background: var(--moss)`" />
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mapa de unidades -->
+        <div class="mb-10">
+          <p class="eyebrow mb-3">Mapa de unidades medicas</p>
+          <UnidadesMapa :unidades="cobUnidad" altura="380px" />
+        </div>
+
+        <!-- Cobertura por grupo prioritario -->
+        <div class="mb-10">
+          <p class="eyebrow mb-3">Cobertura por grupo prioritario</p>
+          <div class="grid grid-cols-2 md:grid-cols-5 gap-6">
+            <div v-for="g in cobGrupo" :key="g.grupo">
+              <p class="text-xs uppercase font-mono tracking-wider" style="color: var(--muted); letter-spacing: 0.1em">
+                {{ g.grupo || 'ninguno' }}
+              </p>
+              <p class="font-display text-4xl mt-1 tabular" style="font-weight: 400">{{ g.usuarios }}</p>
+              <p class="text-xs mt-0.5 tabular" style="color: var(--muted)">{{ g.dosis }} dosis</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cobertura por vacuna -->
+        <div class="mb-10">
+          <p class="eyebrow mb-3">Cobertura por vacuna (% de usuarios con al menos 1 dosis)</p>
+          <div class="space-y-2.5">
+            <div v-for="v in cobVacuna" :key="v.id" class="flex items-baseline gap-3">
+              <span style="font-weight: 500; flex: 0 0 35%">{{ v.nombre }}</span>
+              <div class="flex-1 h-[6px]" style="background: var(--bone)">
+                <div class="h-[6px]"
+                     :style="`width: ${v.cobertura_pct}%; background: ${v.cobertura_pct >= 60 ? 'var(--moss)' : v.cobertura_pct >= 30 ? 'var(--ochre)' : 'var(--wine)'}`" />
+              </div>
+              <span class="font-mono text-sm tabular" style="flex: 0 0 4rem; text-align: right">
+                {{ v.cobertura_pct }}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Call & recall -->
+        <div class="mb-10">
+          <div class="flex items-baseline justify-between mb-3 gap-4">
+            <p class="eyebrow">Call &amp; recall · {{ callRecall.length }} candidatos</p>
+            <button type="button" class="btn-primary text-xs"
+                    :disabled="busyCallRecall || !callRecall.length"
+                    @click="dispararCallRecall">
+              {{ busyCallRecall ? 'Disparando...' : 'Disparar campania' }}
+            </button>
+          </div>
+          <p class="text-sm mb-4" style="color: var(--muted)">
+            Ciudadanos con esquema incompleto y mas de 30 dias sin dosis aplicada.
+          </p>
+          <div v-if="!callRecall.length" class="py-6 text-center text-sm" style="color: var(--muted)">
+            No hay candidatos en este momento.
+          </div>
+          <div v-else class="max-h-80 overflow-y-auto">
+            <div v-for="(c, i) in callRecall" :key="c.curp"
+                 class="flex items-baseline justify-between py-2.5 gap-3"
+                 :style="i < callRecall.length - 1 ? 'border-bottom: 1px dotted var(--border)' : ''">
+              <div class="flex-1 min-w-0">
+                <p style="font-weight: 500">{{ c.nombre }} {{ c.apellido_paterno }}</p>
+                <p class="text-xs mt-0.5" style="color: var(--muted)">
+                  <span class="font-mono">{{ c.curp }}</span>
+                  <span v-if="c.grupo_prioritario && c.grupo_prioritario !== 'ninguno'"> · {{ c.grupo_prioritario }}</span>
+                  · ultima dosis {{ c.ultima_dosis }}
+                </p>
+              </div>
+              <span class="font-mono text-xs tabular" style="color: var(--muted)">
+                {{ c.dosis_aplicadas }}/{{ c.dosis_totales }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== AEFI ===== -->
+      <section v-if="tab === 'aefi'">
+        <div class="border-b pb-2 mb-6 flex items-baseline justify-between" style="border-color: var(--ink)">
+          <h2 class="font-display text-2xl" style="font-weight: 500">Reportes AEFI</h2>
+          <button type="button" class="btn-ghost text-xs" @click="refreshAefi">recargar</button>
+        </div>
+
+        <div v-if="!aefiList.length" class="py-12 text-center">
+          <p class="font-display text-lg italic" style="color: var(--muted); font-weight: 300">
+            Sin reportes registrados.
+          </p>
+        </div>
+        <div v-else>
+          <div v-for="(a, i) in aefiList" :key="a.id"
+               class="py-4"
+               :style="i < aefiList.length - 1 ? 'border-bottom: 1px solid var(--border-soft)' : ''">
+            <div class="flex items-baseline justify-between gap-3">
+              <p style="font-weight: 500">
+                {{ a.nombre }} {{ a.apellido_paterno }}
+                <span class="ml-2 text-sm" style="color: var(--muted)">· {{ a.vacuna_nombre }}</span>
+              </p>
+              <span class="font-mono text-[10px] uppercase tracking-wider"
+                    :style="`color: ${a.severidad === 'grave' || a.severidad === 'severa' ? 'var(--wine)' : a.severidad === 'moderada' ? 'var(--ochre)' : 'var(--moss)'}`">
+                {{ a.severidad }}
+              </span>
+            </div>
+            <p class="text-xs mt-1 font-mono" style="color: var(--muted); letter-spacing: 0.06em">
+              {{ a.curp_usuario }} · {{ a.grupo_prioritario }} · dosis del {{ a.fecha_aplicacion }} · reportado {{ a.creado_en.split(' ')[0] }}
+            </p>
+            <p class="text-sm mt-2">{{ a.sintomas }}</p>
+            <p v-if="a.requiere_seguimiento" class="text-xs mt-2 font-mono" style="color: var(--wine); letter-spacing: 0.08em">
+              REQUIERE SEGUIMIENTO MEDICO
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== AUDITORIA ===== -->
+      <section v-if="tab === 'auditoria'">
+        <div class="border-b pb-2 mb-6 flex items-baseline justify-between gap-4 flex-wrap" style="border-color: var(--ink)">
+          <h2 class="font-display text-2xl" style="font-weight: 500">Bitacora de auditoria</h2>
+          <div class="flex items-center gap-3">
+            <input v-model="auditFiltroAccion" placeholder="filtrar por accion..." class="field text-xs" style="min-width: 200px" />
+            <button type="button" class="btn-ghost text-xs" @click="refreshAuditoria">aplicar</button>
+          </div>
+        </div>
+
+        <table class="w-full text-sm">
+          <thead>
+            <tr style="border-bottom: 2px solid var(--ink)">
+              <th class="text-left py-2 pr-2 eyebrow">Fecha</th>
+              <th class="text-left py-2 px-2 eyebrow">Actor</th>
+              <th class="text-left py-2 px-2 eyebrow">Accion</th>
+              <th class="text-left py-2 px-2 eyebrow">Recurso</th>
+              <th class="text-left py-2 pl-2 eyebrow">IP</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="!auditoria.length">
+              <td colspan="5" class="py-12 text-center text-sm" style="color: var(--muted)">
+                Sin eventos.
+              </td>
+            </tr>
+            <tr v-for="ev in auditoria" :key="ev.id"
+                style="border-bottom: 1px solid var(--border-soft)">
+              <td class="py-2.5 pr-2 tabular text-xs font-mono" style="color: var(--muted)">{{ ev.creado_en }}</td>
+              <td class="py-2.5 px-2 text-xs font-mono">{{ ev.curp_actor || '—' }}</td>
+              <td class="py-2.5 px-2"><span class="font-mono text-[11px] uppercase tracking-wider" style="letter-spacing: 0.1em">{{ ev.accion }}</span></td>
+              <td class="py-2.5 px-2 text-xs">
+                {{ ev.recurso }}<span v-if="ev.recurso_id" class="font-mono"> · {{ ev.recurso_id }}</span>
+              </td>
+              <td class="py-2.5 pl-2 text-xs font-mono" style="color: var(--muted)">{{ ev.ip || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
       </section>
 
     </div>

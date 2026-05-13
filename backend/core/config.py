@@ -1,9 +1,16 @@
-"""Carga de configuracion desde variables de entorno (.env)."""
+"""Carga de configuracion desde variables de entorno.
+
+En desarrollo se lee `.env` en la raiz del repo. En produccion (Docker / Yolani)
+las variables se inyectan directamente por el orquestador, asi que el `.env`
+puede no existir y eso esta bien.
+"""
 import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
+_env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+if _env_path.is_file():
+    load_dotenv(_env_path)
 
 
 class Settings:

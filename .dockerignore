@@ -1,0 +1,49 @@
+# Mantener la imagen pequena y limpia
+# (sin secretos, sin node_modules, sin builds intermedios)
+
+# Secretos
+.env
+.env.*
+!.env.example
+
+# VCS / IDE
+.git
+.gitignore
+.gitattributes
+.idea
+.vscode
+.DS_Store
+
+# Node
+**/node_modules
+**/.nuxt
+**/.output
+**/.cache
+**/dist
+
+# Python
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+**/.mypy_cache
+**/.venv
+**/venv
+
+# Expo / mobile (no entra a la imagen)
+mobile/
+
+# Logs locales y artefactos
+*.log
+logs/
+tmp/
+terminals/
+
+# Markdown grande / no aporta a runtime
+INVESTIGACION.md
+PROYECTO.md
+ROADMAP.md
+
+# Scripts y migraciones que no se ejecutan en runtime
+scripts/
+# (migrations si se quiere correr desde dentro del contenedor, las dejamos)

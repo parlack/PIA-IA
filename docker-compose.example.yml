@@ -1,0 +1,34 @@
+# PIA-IA · docker-compose.example.yml
+# Copia este archivo a docker-compose.yml (que SI esta gitignored) y completa los valores.
+#
+# Para subirlo a piaia.yolani.co simplemente apunta el proxy de Yolani al puerto
+# expuesto (8080). Las credenciales NO se commitean, se inyectan por aqui.
+
+services:
+  piaia:
+    build: .
+    image: piaia/web:latest
+    container_name: piaia
+    restart: unless-stopped
+    ports:
+      - "8080:8080"   # tras esto, Yolani enruta piaia.yolani.co -> :8080
+    environment:
+      # ---- Base de datos MySQL ----
+      DB_HOST: "tu-host-mysql"
+      DB_PORT: "3306"
+      DB_USER: "usuario"
+      DB_PASSWORD: "contrasena"
+      DB_NAME: "default"
+      # ---- CORS: como todo va por el mismo dominio, basta con el dominio publico ----
+      CORS_ORIGINS: "https://piaia.yolani.co"
+      # ---- Yolani Mail (opcional) ----
+      YOLANI_MAIL_API_URL: "https://api.yolani.co"
+      YOLANI_MAIL_API_KEY: ""
+      YOLANI_MAIL_DOMAIN: "yolani.co"
+      YOLANI_MAIL_FROM: "PIA-IA <no-reply@yolani.co>"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

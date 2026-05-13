@@ -1,6 +1,10 @@
 """Servicio de vacunas: historial, catalogo, calculo de resumen."""
+import logging
+
 from fastapi import HTTPException
 from core.constants import VACUNAS_PRIORITARIAS_POR_GRUPO
+
+logger = logging.getLogger(__name__)
 
 
 def obtener_historial(db, curp: str) -> dict:
@@ -48,13 +52,28 @@ def obtener_historial(db, curp: str) -> dict:
 
 
 def registrar_dosis(db, payload) -> int:
+    curp_u = payload.curp_usuario.upper()
     with db.cursor() as cur:
-        cur.execute("SELECT id FROM vacunas_catalogo WHERE id = %s", (payload.vacuna_id,))
-        if not cur.fetchone():
+        cur.execute(
+            "SELECT id, nombre, dosis_total FROM vacunas_catalogo WHERE id = %s",
+            (payload.vacuna_id,),
+        )
+        vacuna = cur.fetchone()
+        if not vacuna:
             raise HTTPException(status_code=404, detail="Vacuna no encontrada en el catalogo.")
 
-        cur.execute("SELECT curp FROM usuarios WHERE curp = %s", (payload.curp_usuario.upper(),))
-        if not cur.fetchone():
+        cur.execute(
+            """
+            SELECT u.curp, u.nombre, u.correo,
+                   um.nombre AS unidad_nombre
+            FROM usuarios u
+            LEFT JOIN unidades_medicas um ON um.id = u.unidad_medica_id
+            WHERE u.curp = %s
+            """,
+            (curp_u,),
+        )
+        usuario = cur.fetchone()
+        if not usuario:
             raise HTTPException(status_code=404, detail="Usuario no encontrado.")
 
         cur.execute(
@@ -65,7 +84,7 @@ def registrar_dosis(db, payload) -> int:
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """,
             (
-                payload.curp_usuario.upper(),
+                curp_u,
                 payload.vacuna_id,
                 payload.numero_dosis,
                 payload.fecha_aplicacion,
@@ -76,7 +95,36 @@ def registrar_dosis(db, payload) -> int:
         )
         new_id = cur.lastrowid
     db.commit()
+
+    _notificar_correo_dosis(
+        usuario=usuario, vacuna=vacuna, payload=payload,
+    )
     return new_id
+
+
+def _notificar_correo_dosis(*, usuario: dict, vacuna: dict, payload) -> None:
+    """Envia correo de confirmacion. Falla silenciosa para no romper el registro."""
+    correo = (usuario.get("correo") or "").strip()
+    if not correo:
+        return
+    try:
+        # Lazy import para evitar dependencia circular en services/__init__.py.
+        from services import email_service
+
+        email_service.notificar_dosis_aplicada(
+            destinatario=correo,
+            nombre=usuario.get("nombre") or "",
+            vacuna=vacuna.get("nombre") or "",
+            numero_dosis=payload.numero_dosis,
+            dosis_total=vacuna.get("dosis_total"),
+            fecha=str(payload.fecha_aplicacion),
+            unidad=payload.lugar_aplicacion or usuario.get("unidad_nombre"),
+            lote=payload.lote,
+        )
+    except Exception:
+        logger.exception(
+            "No se pudo enviar el correo de confirmacion de dosis a %s", correo,
+        )
 
 
 def actualizar_dosis(db, dosis_id: int, data_dict: dict) -> None:

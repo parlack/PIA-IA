@@ -1,9 +1,10 @@
 /**
  * Cliente HTTP base. Maneja serializacion, headers y formato de errores.
  * Todos los composables de dominio deben usar este, no `fetch` directo.
+ *
+ * BASE_URL se resuelve desde runtimeConfig.public.apiBase (configurable por env
+ * `NUXT_PUBLIC_API_BASE`) y cae a `http://localhost:8000` en dev.
  */
-const BASE_URL = 'http://localhost:8000'
-
 export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
 
 export interface HttpError extends Error {
@@ -12,6 +13,9 @@ export interface HttpError extends Error {
 }
 
 export const useHttp = () => {
+  const config = useRuntimeConfig()
+  const BASE_URL = (config.public.apiBase as string) || 'http://localhost:8000'
+
   async function request<T>(
     method: HttpMethod,
     path: string,

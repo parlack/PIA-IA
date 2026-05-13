@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
   `celular` varchar(15) DEFAULT NULL,
   `correo` varchar(120) NOT NULL,
   `contrasena_hash` text DEFAULT NULL,
-  `rol` enum('usuario','administrador') NOT NULL DEFAULT 'usuario',
+  `rol` enum('usuario','administrador','medico') NOT NULL DEFAULT 'usuario',
   `unidad_medica_id` int(11) DEFAULT NULL,
   `medico_familiar` varchar(120) DEFAULT NULL,
   `nss` varchar(11) DEFAULT NULL,
@@ -58,6 +58,8 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
 
 INSERT INTO `usuarios` (`curp`, `nombre`, `apellido_paterno`, `apellido_materno`, `celular`, `correo`, `contrasena_hash`, `rol`, `unidad_medica_id`, `medico_familiar`, `nss`, `grupo_prioritario`, `fecha_nacimiento`, `sexo`) VALUES
 ('XEXX010101HNEXXXA4', 'Admin',     'Sistema',    NULL,        NULL,              'admin@plataforma.com',          '123', 'administrador', NULL, NULL,                           NULL,          'ninguno',        NULL,         NULL),
+('MEDI800101HNLDDC01', 'Daniela',   'Medina',     'Cantu',     '8180000001',      'daniela.medina@piaia.mx',        '123', 'medico',        1,    NULL,                           NULL,          'personal_salud', '1980-01-01', 'M'),
+('MEDI750505HNLDDR02', 'Rodrigo',   'Medina',     'Reyes',     '8180000002',      'rodrigo.medina@piaia.mx',        '123', 'medico',        7,    NULL,                           NULL,          'personal_salud', '1975-05-05', 'H'),
 ('MAGL850305MNLRMS04', 'Laura',     'Martinez',   'Gomez',     '+52 81 1234 567', 'laura.martinez@gmail.com',      '123', 'usuario',       1,    'Dra. Laura Reyes Vazquez',     '12345678901', 'ninguno',        '1985-03-05', 'M'),
 ('GARM850101HDFRRS04', 'Carlos',    'Garcia',     'Ramirez',   '+52 81 9876 543', 'carlos.garcia@gmail.com',       '123', 'usuario',       2,    'Dr. Juan Torres Medina',       '98765432101', 'ninguno',        '1985-01-01', 'H'),
 ('LOPR570812MNLPZS08', 'Rosa',      'Lopez',      'Perez',     '+52 81 5555 111', 'rosa.lopez@correo.com',         NULL,  'usuario',       1,    'Dra. Laura Reyes Vazquez',     '55512345678', 'adulto_mayor',   '1957-08-12', 'M'),
