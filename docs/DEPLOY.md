@@ -1,19 +1,18 @@
-# Despliegue PIA-IA · piaia.yolani.co
+# Despliegue PIA-IA en Coolify · piaia.yolani.co
 
-Este documento explica como construir y desplegar la imagen Docker unificada
-(API FastAPI + Web Nuxt + Nginx) en `piaia.yolani.co`.
+Esta guia cubre como desplegar la imagen unificada (FastAPI + Nuxt 4 + Nginx)
+en una instancia de **Coolify** y exponerla en `piaia.yolani.co`.
 
-> **Importante.** El repositorio es publico. Ningun archivo bajo control de
-> versiones contiene credenciales. Todas las variables sensibles se inyectan
-> en runtime (`docker run -e ...` o panel Yolani).
+> **Repo publico.** Nada bajo control de versiones contiene credenciales.
+> Las variables sensibles se inyectan en runtime via el panel de Coolify.
 
 ## 1. Que hay dentro del contenedor
 
 ```
 piaia/web:latest
-├─ Nginx     :8080   ← unico puerto expuesto al exterior
-│     ├─ /api/*       → uvicorn :8000 (FastAPI, prefijo /api removido)
-│     ├─ /docs        → uvicorn :8000 (OpenAPI)
+├─ Nginx     :8080   ← unico puerto expuesto al exterior (lo lee Coolify de EXPOSE)
+│     ├─ /api/*       → uvicorn :8000 (FastAPI, prefijo /api removido por nginx)
+│     ├─ /docs        → uvicorn :8000 (OpenAPI Swagger)
 │     └─ /*           → node    :3000 (Nuxt 4 SSR)
 ├─ uvicorn  :8000   (interno)
 └─ node     :3000   (interno, Nuxt .output)
@@ -21,7 +20,18 @@ piaia/web:latest
 
 Supervisord supervisa los tres procesos y los reinicia si caen.
 
-## 2. Variables de entorno requeridas
+## 2. Setup en Coolify
+
+### 2.1 Crear el recurso
+
+1. New Resource → **Public Repository**.
+2. Repository URL: la URL publica de tu repo en GitHub/GitLab.
+3. Branch: `main` (o la que uses).
+4. Build pack: **Dockerfile** (Coolify lo detecta al ver `./Dockerfile`).
+5. Ports exposed: `8080`.
+6. Domain: `piaia.yolani.co` (Coolify gestiona TLS via Traefik / Caddy automatico).
+
+### 2.2 Variables de entorno (panel Coolify → Environment)
 
 | Variable | Ejemplo | Obligatoria |
 |---|---|---|
@@ -31,23 +41,44 @@ Supervisord supervisa los tres procesos y los reinicia si caen.
 | `DB_PASSWORD` | `***` (NO commitear) | si |
 | `DB_NAME` | `nombre_de_la_bd` | si |
 | `CORS_ORIGINS` | `https://piaia.yolani.co` | si |
-| `YOLANI_MAIL_API_KEY` | `yk-...` | opcional (mail) |
+| `YOLANI_MAIL_API_KEY` | `yk-...` | opcional |
 | `YOLANI_MAIL_API_URL` | `https://api.yolani.co` | opcional |
 | `YOLANI_MAIL_DOMAIN` | `yolani.co` | opcional |
 | `YOLANI_MAIL_FROM` | `PIA-IA <no-reply@yolani.co>` | opcional |
-| `NUXT_PUBLIC_API_BASE` | `/api` (default en supervisord) | no |
+| `NUXT_PUBLIC_API_BASE` | `/api` (default) | no |
 
-## 3. Build local
+> Marca todas como **Build Variable: No** y **Is Secret: Si** para las
+> credenciales. Coolify las inyecta en runtime, no en build time.
+
+### 2.3 Healthcheck
+
+El Dockerfile ya trae `HEALTHCHECK`. Coolify lo respeta automaticamente.
+Si quieres uno manual en Coolify: `GET /api/health` → debe devolver `200`.
+
+### 2.4 Deploy
+
+1. **Deploy** → Coolify clona el repo, hace `docker build .` (3-5 min), arranca el contenedor.
+2. Tail de logs: Coolify → Logs (combinados de supervisord).
+3. Verifica:
+   - `https://piaia.yolani.co/`                → web Nuxt
+   - `https://piaia.yolani.co/api/health`      → `{"ok": true, ...}`
+   - `https://piaia.yolani.co/docs`            → Swagger
+
+## 3. Migracion de BD (rol medico)
+
+Antes del primer login con CURP de medico, aplica la migracion contra tu BD productiva:
+
+```bash
+mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p$DB_PASSWORD $DB_NAME \
+    < migrations/2026_05_13_add_medico_role.sql
+```
+
+O conectandote desde tu cliente (DBeaver, TablePlus, phpMyAdmin) y pegando el SQL.
+
+## 4. Build local (smoke fuera de Coolify)
 
 ```bash
 docker build -t piaia/web:latest .
-```
-
-Tarda ~3-5 min la primera vez (Nuxt build + pip install + Node 20 apt).
-
-## 4. Correr local (smoke)
-
-```bash
 docker run --rm -p 8080:8080 \
   -e DB_HOST=tu-host \
   -e DB_PORT=3306 \
@@ -58,35 +89,22 @@ docker run --rm -p 8080:8080 \
   piaia/web:latest
 ```
 
-Visita http://localhost:8080. Healthcheck: `curl http://localhost:8080/api/health`.
+Visita http://localhost:8080.
 
-Tambien puedes copiar `docker-compose.example.yml` a `docker-compose.yml` y correr `docker compose up`.
+## 5. Mobile contra produccion
 
-## 5. Subir a Yolani (piaia.yolani.co)
+La app movil **no** se dockeriza (sigue siendo Expo). Para que apunte a Coolify:
 
-1. Construye y empuja la imagen al registro que use Yolani
-   (o sube el tarball: `docker save piaia/web:latest | gzip > piaia.tar.gz`).
-2. En el panel de Yolani configura:
-   - **Puerto interno:** `8080`
-   - **Dominio:** `piaia.yolani.co`
-   - **Variables de entorno:** las de la tabla #2.
-3. Aplica la migracion SQL del rol medico contra la BD productiva:
-   ```bash
-   mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p$DB_PASSWORD $DB_NAME \
-       < migrations/2026_05_13_add_medico_role.sql
-   ```
-4. Verifica:
-   - `https://piaia.yolani.co/`                → debe servir la landing/login Nuxt
-   - `https://piaia.yolani.co/api/health`      → `{"ok": true, ...}`
-   - `https://piaia.yolani.co/docs`            → OpenAPI swagger
-   - Login admin/medico con CURP + password.
+```bash
+# mobile/.env
+EXPO_PUBLIC_API_BASE=https://piaia.yolani.co/api
+```
 
 ## 6. Problemas comunes
 
-- **`502 Bad Gateway` en `/`**: uvicorn o node aun no levantaron. Espera 10-20s.
-  Logs: `docker logs piaia` (supervisord stream).
-- **`Network request failed` en mobile**: la app movil no esta dockerizada; sigue
-  apuntando a `EXPO_PUBLIC_API_BASE`. Para que use produccion, en `mobile/.env`
-  pon `EXPO_PUBLIC_API_BASE=https://piaia.yolani.co/api`.
-- **CORS rechazado**: asegura que `CORS_ORIGINS` contenga `https://piaia.yolani.co`.
-- **DB no accesible**: verifica firewall del host MySQL hacia la IP del contenedor.
+- **`502 Bad Gateway`**: uvicorn o node aun no levantaron. Espera 10-20s o checa logs.
+- **CORS rechazado**: asegura `CORS_ORIGINS=https://piaia.yolani.co` en Coolify.
+- **`Error connecting to MySQL`**: verifica que el host BD permita conexiones desde la IP del servidor Coolify (firewall, allowed_hosts).
+- **Coolify no detecta el puerto**: confirma que el Dockerfile tiene `EXPOSE 8080`.
+- **Build muy lento**: Coolify cachea capas; el primer build tarda mas, el resto es rapido.
+- **Cambio en frontend no aparece**: redeploy (no basta restart, hay que rebuild para que Nuxt regenere `.output`).
