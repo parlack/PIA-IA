@@ -6,52 +6,55 @@ definePageMeta({ layout: 'auth' })
 const router = useRouter()
 const api = useApi()
 
+const tab = ref<'consulta' | 'acceso'>('consulta')
+
 const curp = ref('')
 const password = ref('')
 const showPass = ref(false)
 const error = ref('')
 const loading = ref(false)
 
-// Panel "Desconozco mi CURP"
 const showCurpHelper = ref(false)
 const helperStep = ref<'form' | 'result'>('form')
 const helperLoading = ref(false)
 
 const helper = reactive({
-  nombre: '',
-  apellidoPaterno: '',
-  apellidoMaterno: '',
-  fechaNacimiento: '',
-  sexo: '' as 'H' | 'M' | '',
-  estadoNacimiento: '',
+  nombre: '', apellidoPaterno: '', apellidoMaterno: '',
+  fechaNacimiento: '', sexo: '' as 'H' | 'M' | '', estadoNacimiento: '',
 })
-
 const helperErrors = reactive({
-  nombre: '',
-  apellidoPaterno: '',
-  apellidoMaterno: '',
-  fechaNacimiento: '',
-  sexo: '',
-  estadoNacimiento: '',
+  nombre: '', apellidoPaterno: '', apellidoMaterno: '',
+  fechaNacimiento: '', sexo: '', estadoNacimiento: '',
 })
 
 const curpGenerada = ref('')
+const curpRegex = /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/
 
 const estadosCodes: Record<string, string> = {
   'Aguascalientes': 'AS', 'Baja California': 'BC', 'Baja California Sur': 'BS',
-  'Campeche': 'CC', 'Chiapas': 'CS', 'Chihuahua': 'CH', 'Ciudad de México': 'DF',
+  'Campeche': 'CC', 'Chiapas': 'CS', 'Chihuahua': 'CH', 'Ciudad de Mexico': 'DF',
   'Coahuila': 'CL', 'Colima': 'CM', 'Durango': 'DG', 'Guanajuato': 'GT',
-  'Guerrero': 'GR', 'Hidalgo': 'HG', 'Jalisco': 'JC', 'Estado de México': 'MC',
-  'Michoacán': 'MN', 'Morelos': 'MO', 'Nayarit': 'NT', 'Nuevo León': 'NL',
-  'Oaxaca': 'OC', 'Puebla': 'PL', 'Querétaro': 'QT', 'Quintana Roo': 'QR',
-  'San Luis Potosí': 'SP', 'Sinaloa': 'SL', 'Sonora': 'SR', 'Tabasco': 'TC',
-  'Tamaulipas': 'TS', 'Tlaxcala': 'TL', 'Veracruz': 'VZ', 'Yucatán': 'YN',
+  'Guerrero': 'GR', 'Hidalgo': 'HG', 'Jalisco': 'JC', 'Estado de Mexico': 'MC',
+  'Michoacan': 'MN', 'Morelos': 'MO', 'Nayarit': 'NT', 'Nuevo Leon': 'NL',
+  'Oaxaca': 'OC', 'Puebla': 'PL', 'Queretaro': 'QT', 'Quintana Roo': 'QR',
+  'San Luis Potosi': 'SP', 'Sinaloa': 'SL', 'Sonora': 'SR', 'Tabasco': 'TC',
+  'Tamaulipas': 'TS', 'Tlaxcala': 'TL', 'Veracruz': 'VZ', 'Yucatan': 'YN',
   'Zacatecas': 'ZS',
 }
-
 const estados = Object.keys(estadosCodes)
 
-// Genera CURP simplificada (aproximación visual, no oficial)
+function formatCurp(val: string) {
+  return val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 18)
+}
+function onCurpInput(e: Event) {
+  curp.value = formatCurp((e.target as HTMLInputElement).value)
+}
+function switchTab(t: 'consulta' | 'acceso') {
+  tab.value = t
+  error.value = ''
+  if (t === 'consulta') password.value = ''
+}
+
 function generarCurpAproximada(): string {
   const n = helper.nombre.toUpperCase().replace(/[^A-Z]/g, '')
   const ap = helper.apellidoPaterno.toUpperCase().replace(/[^A-Z]/g, '')
@@ -59,34 +62,32 @@ function generarCurpAproximada(): string {
   const fecha = helper.fechaNacimiento.replace(/-/g, '').slice(2)
   const sexo = helper.sexo
   const estado = estadosCodes[helper.estadoNacimiento] || 'NL'
-
-  // Primer letra + primera vocal interna del apellido paterno
   const vocalAp = ap.slice(1).split('').find(c => 'AEIOU'.includes(c)) || 'X'
   const part1 = (ap[0] || 'X') + vocalAp + (am[0] || 'X') + (n[0] || 'X')
   const part2 = fecha + sexo + estado
-  const consonantesAp = ap.slice(1).split('').filter(c => !'AEIOU'.includes(c))
-  const consonantesAm = am.slice(1).split('').filter(c => !'AEIOU'.includes(c))
-  const consonantesN = n.slice(1).split('').filter(c => !'AEIOU'.includes(c))
-  const part3 = (consonantesAp[0] || 'X') + (consonantesAm[0] || 'X') + (consonantesN[0] || 'X')
+  const cAp = ap.slice(1).split('').filter(c => !'AEIOU'.includes(c))
+  const cAm = am.slice(1).split('').filter(c => !'AEIOU'.includes(c))
+  const cN = n.slice(1).split('').filter(c => !'AEIOU'.includes(c))
+  const part3 = (cAp[0] || 'X') + (cAm[0] || 'X') + (cN[0] || 'X')
   return (part1 + part2 + part3 + '0A').toUpperCase()
 }
 
 function validateHelper(): boolean {
-  let valid = true
-  helperErrors.nombre = helper.nombre.trim() ? '' : 'Campo requerido.'
-  helperErrors.apellidoPaterno = helper.apellidoPaterno.trim() ? '' : 'Campo requerido.'
-  helperErrors.apellidoMaterno = helper.apellidoMaterno.trim() ? '' : 'Campo requerido.'
-  helperErrors.fechaNacimiento = helper.fechaNacimiento ? '' : 'Campo requerido.'
-  helperErrors.sexo = helper.sexo ? '' : 'Selecciona una opción.'
-  helperErrors.estadoNacimiento = helper.estadoNacimiento ? '' : 'Selecciona un estado.'
-  Object.values(helperErrors).forEach(e => { if (e) valid = false })
-  return valid
+  let ok = true
+  helperErrors.nombre = helper.nombre.trim() ? '' : 'Requerido'
+  helperErrors.apellidoPaterno = helper.apellidoPaterno.trim() ? '' : 'Requerido'
+  helperErrors.apellidoMaterno = helper.apellidoMaterno.trim() ? '' : 'Requerido'
+  helperErrors.fechaNacimiento = helper.fechaNacimiento ? '' : 'Requerido'
+  helperErrors.sexo = helper.sexo ? '' : 'Requerido'
+  helperErrors.estadoNacimiento = helper.estadoNacimiento ? '' : 'Requerido'
+  Object.values(helperErrors).forEach(e => { if (e) ok = false })
+  return ok
 }
 
 async function buscarCurp() {
   if (!validateHelper()) return
   helperLoading.value = true
-  await new Promise(r => setTimeout(r, 1800))
+  await new Promise(r => setTimeout(r, 1500))
   curpGenerada.value = generarCurpAproximada()
   helperLoading.value = false
   helperStep.value = 'result'
@@ -101,43 +102,20 @@ function usarCurpGenerada() {
 function resetHelper() {
   helperStep.value = 'form'
   curpGenerada.value = ''
-  helper.nombre = ''
-  helper.apellidoPaterno = ''
-  helper.apellidoMaterno = ''
-  helper.fechaNacimiento = ''
-  helper.sexo = ''
-  helper.estadoNacimiento = ''
+  Object.assign(helper, { nombre: '', apellidoPaterno: '', apellidoMaterno: '', fechaNacimiento: '', sexo: '', estadoNacimiento: '' })
   Object.keys(helperErrors).forEach(k => (helperErrors as any)[k] = '')
-}
-
-// Login
-const curpRegex = /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/
-
-function formatCurp(val: string) {
-  return val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 18)
-}
-
-function onCurpInput(e: Event) {
-  curp.value = formatCurp((e.target as HTMLInputElement).value)
 }
 
 async function handleLogin() {
   error.value = ''
-  if (!curp.value) { error.value = 'Por favor ingresa tu CURP.'; return }
-  if (!curpRegex.test(curp.value)) { error.value = 'El formato de CURP no es válido. Verifica e intenta de nuevo.'; return }
+  if (!curp.value) { error.value = 'Ingresa tu CURP.'; return }
+  if (!curpRegex.test(curp.value)) { error.value = 'Formato de CURP invalido.'; return }
+  if (tab.value === 'acceso' && !password.value.trim()) { error.value = 'Ingresa tu contrasena.'; return }
 
   loading.value = true
   try {
-    const data = await api.login(
-      curp.value,
-      password.value.trim() ? password.value : undefined
-    ) as {
-      autenticado: boolean
-      curp: string
-      nombre: string
-      apellido_paterno: string
-      correo: string | null
-      rol: string
+    const data = await api.login(curp.value, tab.value === 'acceso' ? password.value : undefined) as {
+      autenticado: boolean; curp: string; nombre: string; apellido_paterno: string; correo: string | null; rol: string
     }
     localStorage.setItem('auth', data.autenticado ? 'true' : 'false')
     localStorage.setItem('curp', data.curp)
@@ -146,288 +124,209 @@ async function handleLogin() {
     if (display) localStorage.setItem('userName', display)
     router.push('/dashboard')
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : 'No se pudo iniciar sesión.'
-  } finally {
-    loading.value = false
-  }
+    const errData = (e as { data?: Record<string, unknown> })?.data
+    if (errData?.registrable) {
+      localStorage.setItem('auth', 'false')
+      localStorage.setItem('curp', curp.value)
+      localStorage.setItem('rol', 'usuario')
+      localStorage.setItem('noRegistrado', 'true')
+      router.push('/dashboard')
+      return
+    }
+    error.value = e instanceof Error ? e.message : 'No se pudo iniciar sesion.'
+  } finally { loading.value = false }
 }
+
+const anio = new Date().getFullYear()
 </script>
 
 <template>
-  <div class="min-h-screen bg-white flex flex-col">
+  <div class="min-h-screen flex flex-col lg:flex-row">
 
-    <!-- Top bar -->
-    <div class="bg-black text-white py-2 px-6">
-      <p class="text-xs text-center tracking-widest uppercase font-medium">
-        Instituto Mexicano del Seguro Social — Sistema de Cartilla de Vacunación
-      </p>
-    </div>
-
-    <!-- Contenido -->
-    <div class="flex-1 flex items-center justify-center px-4 py-16">
-      <div class="w-full max-w-md">
-
-        <!-- Header -->
-        <div class="text-center mb-10">
-          <div class="inline-flex items-center justify-center w-16 h-16 border-2 border-black mb-6">
-            <svg class="w-9 h-9" viewBox="0 0 40 40" fill="none">
-              <rect x="1" y="1" width="38" height="38" stroke="black" stroke-width="2"/>
-              <path d="M20 8v24M8 20h24" stroke="black" stroke-width="2.5"/>
-              <circle cx="20" cy="20" r="5" fill="black"/>
-            </svg>
-          </div>
-          <h1 class="text-2xl font-black tracking-tight text-black uppercase">Cartilla de Vacunación</h1>
-          <p class="text-sm text-gray-500 mt-1 font-medium">Acceso al Sistema Nacional de Inmunización</p>
+    <!-- Columna izquierda: identidad editorial -->
+    <aside class="lg:w-[44%] lg:min-h-screen px-6 lg:px-14 pt-8 lg:pt-14 pb-6 lg:pb-14 flex flex-col" style="background: var(--moss-dark); color: var(--paper)">
+      <div class="flex items-center gap-3">
+        <img src="/pia-logo.png" alt="PIA-IA" class="h-12 w-auto" style="filter: brightness(0) invert(1)" />
+        <div class="text-xs leading-tight" style="font-family: var(--font-mono); letter-spacing: 0.12em">
+          <p class="opacity-70">PIA · IA</p>
+          <p>SECRETARIA DE SALUD</p>
         </div>
+      </div>
 
-        <!-- Card principal -->
-        <div class="border border-gray-200 bg-white p-8">
-          <div class="mb-6">
-            <h2 class="text-sm font-bold uppercase tracking-widest text-black mb-1">Identificación del Ciudadano</h2>
-            <p class="text-xs text-gray-400">Ingresa tu CURP para acceder a tu expediente de vacunación.</p>
+      <div class="flex-1 flex flex-col justify-center py-10 lg:py-0">
+        <p class="eyebrow" style="color: var(--moss-soft)">Sistema Nacional de Inmunizacion</p>
+        <h1 class="font-display mt-4 text-[40px] leading-[1.05] sm:text-[52px] lg:text-[60px] tracking-tight" style="font-weight: 400">
+          Tu cartilla<br />
+          <em class="italic" style="font-weight: 300">de vacunacion,</em><br />
+          siempre contigo.
+        </h1>
+        <p class="mt-6 text-sm max-w-md leading-relaxed opacity-80">
+          Consulta tu historial completo, recibe recordatorios oficiales y descarga tu cartilla en cualquier momento.
+        </p>
+
+        <div class="mt-10 grid grid-cols-3 gap-6 max-w-md">
+          <div>
+            <p class="tabular font-display text-3xl" style="font-weight: 400">17</p>
+            <p class="eyebrow mt-1" style="color: var(--moss-soft); font-size: 10px">Vacunas oficiales</p>
           </div>
-
-          <div class="space-y-5">
-
-            <!-- CURP -->
-            <div>
-              <label class="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">CURP</label>
-              <input
-                :value="curp" @input="onCurpInput" @keyup.enter="handleLogin"
-                type="text" maxlength="18" placeholder="XXXX000000XXXXXXXX"
-                autocomplete="off" spellcheck="false"
-                class="w-full border border-gray-300 px-4 py-3 text-sm font-mono tracking-widest uppercase text-black placeholder-gray-300 focus:outline-none focus:border-black transition-colors"
-              />
-              <p class="text-xs text-gray-400 mt-1.5">18 caracteres · Ejemplo: GARM850101HDFRRS04</p>
-            </div>
-
-            <!-- Contraseña (opcional) -->
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <label class="text-xs font-bold uppercase tracking-widest text-gray-500">
-                  Contraseña
-                  <span class="ml-1.5 text-gray-300 font-medium normal-case tracking-normal">(opcional)</span>
-                </label>
-              </div>
-              <div class="relative">
-                <input
-                  v-model="password" :type="showPass ? 'text' : 'password'"
-                  @keyup.enter="handleLogin"
-                  placeholder="Ingresa tu contraseña"
-                  class="w-full border border-gray-300 px-4 py-3 text-sm text-black placeholder-gray-300 focus:outline-none focus:border-black transition-colors pr-11"
-                />
-                <button @click="showPass = !showPass" type="button"
-                  class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black transition-colors">
-                  <svg v-if="!showPass" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                  </svg>
-                  <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
-                  </svg>
-                </button>
-              </div>
-
-              <!-- Aviso de acceso según contraseña -->
-              <transition name="fade-info">
-                <div v-if="!password"
-                  class="mt-2 flex items-start gap-2 bg-gray-50 border border-gray-100 px-3 py-2.5">
-                  <svg class="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                  </svg>
-                  <p class="text-xs text-gray-400 leading-relaxed">
-                    Sin contraseña verás un <span class="font-semibold text-gray-600">historial básico</span> de vacunas. Para acceso completo ingresa tu contraseña.
-                  </p>
-                </div>
-                <div v-else
-                  class="mt-2 flex items-start gap-2 bg-black px-3 py-2.5">
-                  <svg class="w-3.5 h-3.5 text-white mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                  </svg>
-                  <p class="text-xs text-white leading-relaxed">
-                    Acceso <span class="font-bold">completo</span> a tu expediente de vacunación.
-                  </p>
-                </div>
-              </transition>
-            </div>
-
-            <!-- Error -->
-            <div v-if="error" class="border border-gray-400 bg-gray-50 px-4 py-3 flex items-start gap-2.5">
-              <svg class="w-4 h-4 text-gray-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-              </svg>
-              <p class="text-xs text-gray-700">{{ error }}</p>
-            </div>
-
-            <!-- Botón -->
-            <button :disabled="loading" @click="handleLogin"
-              class="w-full bg-black text-white py-3.5 text-sm font-bold uppercase tracking-widest transition-opacity disabled:opacity-50 hover:opacity-80 flex items-center justify-center gap-2">
-              <svg v-if="loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="white" stroke-width="4"/>
-                <path class="opacity-75" fill="white" d="M4 12a8 8 0 018-8V0C5.37 0 0 5.37 0 12h4z"/>
-              </svg>
-              <span>{{ loading ? 'Verificando…' : 'Consultar Expediente' }}</span>
-            </button>
-
+          <div>
+            <p class="tabular font-display text-3xl" style="font-weight: 400">32</p>
+            <p class="eyebrow mt-1" style="color: var(--moss-soft); font-size: 10px">Entidades</p>
+          </div>
+          <div>
+            <p class="tabular font-display text-3xl" style="font-weight: 400">24/7</p>
+            <p class="eyebrow mt-1" style="color: var(--moss-soft); font-size: 10px">Disponible</p>
           </div>
         </div>
+      </div>
 
-        <!-- Desconozco mi CURP -->
-        <div class="mt-4 border border-gray-200 bg-white overflow-hidden">
-          <button
-            @click="showCurpHelper = !showCurpHelper; if (!showCurpHelper) resetHelper()"
-            class="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors text-left"
-          >
-            <div class="flex items-center gap-3">
-              <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-              <span class="text-xs font-bold uppercase tracking-widest text-gray-600">Desconozco cuál es mi CURP</span>
+      <div class="text-[11px] opacity-50 mt-8" style="font-family: var(--font-mono); letter-spacing: 0.08em">
+        © {{ anio }} — PIA-IA · MX
+      </div>
+    </aside>
+
+    <!-- Columna derecha: form -->
+    <main class="flex-1 flex items-start lg:items-center px-6 lg:px-14 py-10 lg:py-14">
+      <div class="w-full max-w-md mx-auto lg:mx-0">
+
+        <p class="eyebrow">Acceso ciudadano</p>
+        <h2 class="font-display mt-3 text-3xl sm:text-[34px] tracking-tight" style="font-weight: 500">
+          Identificate
+        </h2>
+        <p class="mt-2 text-sm" style="color: var(--muted)">
+          Selecciona como deseas continuar.
+        </p>
+
+        <!-- Tabs editoriales (sin pill ni shadow) -->
+        <div class="mt-7 flex gap-6 border-b" style="border-color: var(--border)">
+          <button @click="switchTab('consulta')" class="pb-3 -mb-px relative transition-colors"
+            :class="tab === 'consulta' ? '' : 'opacity-50 hover:opacity-80'">
+            <span class="text-sm" style="font-weight: 500">Consulta rapida</span>
+            <span v-if="tab === 'consulta'" class="absolute left-0 right-0 -bottom-px h-[2px]" style="background: var(--ink)" />
+          </button>
+          <button @click="switchTab('acceso')" class="pb-3 -mb-px relative transition-colors"
+            :class="tab === 'acceso' ? '' : 'opacity-50 hover:opacity-80'">
+            <span class="text-sm" style="font-weight: 500">Acceso completo</span>
+            <span v-if="tab === 'acceso'" class="absolute left-0 right-0 -bottom-px h-[2px]" style="background: var(--ink)" />
+          </button>
+        </div>
+
+        <p class="mt-5 text-[13px] leading-relaxed" style="color: var(--muted)">
+          <template v-if="tab === 'consulta'">
+            Solo necesitas tu CURP. Ideal para consultar tu historial sin recordar contrasenas.
+          </template>
+          <template v-else>
+            Ingresa con CURP y contrasena para gestionar tu expediente completo y recibir mensajes.
+          </template>
+        </p>
+
+        <div class="mt-7 space-y-5">
+
+          <label class="block">
+            <span class="eyebrow">CURP</span>
+            <input :value="curp" @input="onCurpInput" @keyup.enter="handleLogin" type="text" maxlength="18"
+              placeholder="XXXX000000XXXXXXXX" autocomplete="off" spellcheck="false"
+              class="field mono mt-2 uppercase" />
+          </label>
+
+          <label v-if="tab === 'acceso'" class="block">
+            <span class="eyebrow">Contrasena</span>
+            <div class="relative mt-2">
+              <input v-model="password" :type="showPass ? 'text' : 'password'" @keyup.enter="handleLogin"
+                placeholder="••••••••"
+                class="field pr-12" />
+              <button @click="showPass = !showPass" type="button"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-xs opacity-60 hover:opacity-100 transition-opacity"
+                style="color: var(--muted)">
+                {{ showPass ? 'ocultar' : 'ver' }}
+              </button>
             </div>
-            <svg class="w-4 h-4 text-gray-400 transition-transform duration-300"
-              :class="showCurpHelper ? 'rotate-180' : ''"
-              fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-            </svg>
+          </label>
+
+          <div v-if="error" class="flex items-start gap-2 px-3 py-2.5 border-l-2" style="border-color: var(--wine); background: rgba(153,27,27,0.04)">
+            <p class="text-[13px]" style="color: var(--wine)">{{ error }}</p>
+          </div>
+
+          <button :disabled="loading" @click="handleLogin" class="btn-primary w-full mt-2 flex items-center justify-center gap-2">
+            <span v-if="loading" class="inline-block w-3.5 h-3.5 border-[1.5px] border-white border-t-transparent rounded-full animate-spin" />
+            <span>{{ loading ? 'Verificando…' : (tab === 'consulta' ? 'Ver mi cartilla' : 'Iniciar sesion') }}</span>
+            <span v-if="!loading" class="font-mono text-sm">→</span>
+          </button>
+        </div>
+
+        <!-- Acordeon: no conozco mi CURP -->
+        <div class="mt-10">
+          <button @click="showCurpHelper = !showCurpHelper; if (!showCurpHelper) resetHelper()"
+            class="w-full flex items-center justify-between py-3 border-t border-b transition-colors" style="border-color: var(--border)">
+            <span class="eyebrow">No conozco mi CURP</span>
+            <span class="font-mono text-sm transition-transform" :class="showCurpHelper ? 'rotate-90' : ''">+</span>
           </button>
 
-          <!-- Panel colapsable -->
           <transition name="collapse">
-            <div v-if="showCurpHelper" class="border-t border-gray-100">
-
-              <!-- Paso: formulario -->
-              <div v-if="helperStep === 'form'" class="px-5 py-5 space-y-4">
-                <p class="text-xs text-gray-500 leading-relaxed">
-                  Ingresa tus datos personales y construiremos tu CURP aproximada para que puedas consultarla o verificarla en RENAPO.
-                </p>
-
-                <div class="grid grid-cols-2 gap-3">
-                  <div class="col-span-2">
-                    <label class="block text-xs font-bold uppercase tracking-widest text-gray-400 mb-1.5">Nombre(s)</label>
-                    <input v-model="helper.nombre" type="text" placeholder="Ej. Laura"
-                      class="w-full border px-3 py-2.5 text-sm text-black focus:outline-none focus:border-black transition-colors"
-                      :class="helperErrors.nombre ? 'border-red-300' : 'border-gray-200'"/>
-                    <p v-if="helperErrors.nombre" class="text-xs text-red-400 mt-1">{{ helperErrors.nombre }}</p>
-                  </div>
-
-                  <div>
-                    <label class="block text-xs font-bold uppercase tracking-widest text-gray-400 mb-1.5">Apellido paterno</label>
-                    <input v-model="helper.apellidoPaterno" type="text" placeholder="Ej. Martínez"
-                      class="w-full border px-3 py-2.5 text-sm text-black focus:outline-none focus:border-black transition-colors"
-                      :class="helperErrors.apellidoPaterno ? 'border-red-300' : 'border-gray-200'"/>
-                    <p v-if="helperErrors.apellidoPaterno" class="text-xs text-red-400 mt-1">{{ helperErrors.apellidoPaterno }}</p>
-                  </div>
-
-                  <div>
-                    <label class="block text-xs font-bold uppercase tracking-widest text-gray-400 mb-1.5">Apellido materno</label>
-                    <input v-model="helper.apellidoMaterno" type="text" placeholder="Ej. Gómez"
-                      class="w-full border px-3 py-2.5 text-sm text-black focus:outline-none focus:border-black transition-colors"
-                      :class="helperErrors.apellidoMaterno ? 'border-red-300' : 'border-gray-200'"/>
-                    <p v-if="helperErrors.apellidoMaterno" class="text-xs text-red-400 mt-1">{{ helperErrors.apellidoMaterno }}</p>
-                  </div>
-
-                  <div>
-                    <label class="block text-xs font-bold uppercase tracking-widest text-gray-400 mb-1.5">Fecha de nacimiento</label>
-                    <input v-model="helper.fechaNacimiento" type="date"
-                      class="w-full border px-3 py-2.5 text-sm text-black focus:outline-none focus:border-black transition-colors"
-                      :class="helperErrors.fechaNacimiento ? 'border-red-300' : 'border-gray-200'"/>
-                    <p v-if="helperErrors.fechaNacimiento" class="text-xs text-red-400 mt-1">{{ helperErrors.fechaNacimiento }}</p>
-                  </div>
-
-                  <div>
-                    <label class="block text-xs font-bold uppercase tracking-widest text-gray-400 mb-1.5">Sexo de nacimiento</label>
-                    <div class="flex gap-2 mt-0.5">
-                      <button @click="helper.sexo = 'H'" type="button"
-                        :class="helper.sexo === 'H' ? 'bg-black text-white border-black' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'"
-                        class="flex-1 border py-2.5 text-xs font-bold uppercase tracking-widest transition-colors">
-                        Hombre
-                      </button>
-                      <button @click="helper.sexo = 'M'" type="button"
-                        :class="helper.sexo === 'M' ? 'bg-black text-white border-black' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'"
-                        class="flex-1 border py-2.5 text-xs font-bold uppercase tracking-widest transition-colors">
-                        Mujer
-                      </button>
-                    </div>
-                    <p v-if="helperErrors.sexo" class="text-xs text-red-400 mt-1">{{ helperErrors.sexo }}</p>
-                  </div>
-
-                  <div class="col-span-2">
-                    <label class="block text-xs font-bold uppercase tracking-widest text-gray-400 mb-1.5">Estado de nacimiento</label>
-                    <select v-model="helper.estadoNacimiento"
-                      class="w-full border px-3 py-2.5 text-sm text-black focus:outline-none focus:border-black transition-colors bg-white"
-                      :class="helperErrors.estadoNacimiento ? 'border-red-300' : 'border-gray-200'">
-                      <option value="" disabled>Selecciona un estado…</option>
-                      <option v-for="e in estados" :key="e" :value="e">{{ e }}</option>
-                    </select>
-                    <p v-if="helperErrors.estadoNacimiento" class="text-xs text-red-400 mt-1">{{ helperErrors.estadoNacimiento }}</p>
+            <div v-if="showCurpHelper" class="overflow-hidden">
+              <div v-if="helperStep === 'form'" class="py-5 space-y-3">
+                <input v-model="helper.nombre" type="text" placeholder="Nombre(s)" class="field"
+                  :class="helperErrors.nombre ? 'field-error' : ''" />
+                <div class="grid grid-cols-2 gap-2">
+                  <input v-model="helper.apellidoPaterno" type="text" placeholder="Ap. paterno" class="field"
+                    :class="helperErrors.apellidoPaterno ? 'field-error' : ''" />
+                  <input v-model="helper.apellidoMaterno" type="text" placeholder="Ap. materno" class="field"
+                    :class="helperErrors.apellidoMaterno ? 'field-error' : ''" />
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <input v-model="helper.fechaNacimiento" type="date" class="field"
+                    :class="helperErrors.fechaNacimiento ? 'field-error' : ''" />
+                  <div class="flex gap-2">
+                    <button @click="helper.sexo = 'H'" type="button" class="flex-1 py-2.5 text-sm transition-colors border" :class="helper.sexo === 'H' ? 'text-white' : ''"
+                      :style="helper.sexo === 'H' ? 'background: var(--ink); border-color: var(--ink)' : 'border-color: var(--border); color: var(--muted)'">Hombre</button>
+                    <button @click="helper.sexo = 'M'" type="button" class="flex-1 py-2.5 text-sm transition-colors border" :class="helper.sexo === 'M' ? 'text-white' : ''"
+                      :style="helper.sexo === 'M' ? 'background: var(--ink); border-color: var(--ink)' : 'border-color: var(--border); color: var(--muted)'">Mujer</button>
                   </div>
                 </div>
+                <select v-model="helper.estadoNacimiento" class="field"
+                  :class="helperErrors.estadoNacimiento ? 'field-error' : ''">
+                  <option value="" disabled>Estado de nacimiento…</option>
+                  <option v-for="e in estados" :key="e" :value="e">{{ e }}</option>
+                </select>
 
-                <button @click="buscarCurp" :disabled="helperLoading"
-                  class="w-full border border-black text-black py-3 text-xs font-bold uppercase tracking-widest hover:bg-black hover:text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                  <svg v-if="helperLoading" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.37 0 0 5.37 0 12h4z"/>
-                  </svg>
-                  <span>{{ helperLoading ? 'Construyendo CURP…' : 'Obtener CURP aproximada' }}</span>
+                <button @click="buscarCurp" :disabled="helperLoading" class="btn-ghost w-full mt-3 flex items-center justify-center gap-2">
+                  <span v-if="helperLoading" class="inline-block w-3 h-3 border-[1.5px] rounded-full animate-spin" style="border-color: var(--ink); border-top-color: transparent" />
+                  <span>{{ helperLoading ? 'Generando…' : 'Calcular mi CURP' }}</span>
                 </button>
               </div>
 
-              <!-- Paso: resultado -->
-              <div v-else-if="helperStep === 'result'" class="px-5 py-5 space-y-4">
-                <div class="bg-gray-50 border border-gray-100 px-4 py-4">
-                  <p class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">CURP aproximada</p>
-                  <p class="text-xl font-black font-mono tracking-widest text-black">{{ curpGenerada }}</p>
-                  <p class="text-xs text-gray-400 mt-2 leading-relaxed">
-                    Este resultado es orientativo. Verifica y obtén tu CURP oficial en
-                    <a href="https://www.gob.mx/curp" target="_blank" class="text-black font-semibold underline underline-offset-2">gob.mx/curp</a>.
-                  </p>
+              <div v-else class="py-5 space-y-4">
+                <div class="text-center py-6 border" style="border-color: var(--border); background: var(--paper)">
+                  <p class="eyebrow">CURP aproximada</p>
+                  <p class="mt-3 font-mono text-xl tracking-[0.18em]" style="font-weight: 500">{{ curpGenerada }}</p>
                 </div>
-
-                <div class="flex gap-2">
-                  <button @click="usarCurpGenerada"
-                    class="flex-1 bg-black text-white py-2.5 text-xs font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
-                    Usar esta CURP
-                  </button>
-                  <button @click="resetHelper"
-                    class="flex-1 border border-gray-200 text-gray-500 py-2.5 text-xs font-bold uppercase tracking-widest hover:border-gray-400 transition-colors">
-                    Corregir datos
-                  </button>
+                <div class="grid grid-cols-2 gap-2">
+                  <button @click="usarCurpGenerada" class="btn-primary py-2.5 text-sm">Usar esta CURP</button>
+                  <button @click="resetHelper" class="btn-ghost py-2.5 text-sm">Volver a llenar</button>
                 </div>
+                <p class="text-[11px] text-center" style="color: var(--muted); font-style: italic">
+                  Verifica tu CURP oficial en gob.mx/curp.
+                </p>
               </div>
-
             </div>
           </transition>
         </div>
 
-        <!-- Footer -->
-        <div class="mt-6 text-center space-y-1">
-          <p class="text-xs text-gray-400">
-            ¿Problemas con tu CURP?
-            <a href="#" class="text-black underline underline-offset-2 font-medium">Consulta RENAPO</a>
-          </p>
-          <p class="text-xs text-gray-300 mt-3">IMSS · Uso exclusivo para trámites oficiales de salud</p>
-        </div>
       </div>
-    </div>
-
-    <!-- Bottom bar -->
-    <div class="border-t border-gray-100 py-3 px-6">
-      <p class="text-xs text-gray-300 text-center">
-        © {{ new Date().getFullYear() }} Instituto Mexicano del Seguro Social · Todos los derechos reservados
-      </p>
-    </div>
+    </main>
   </div>
 </template>
 
 <style scoped>
-.fade-enter-active, .fade-leave-active { transition: opacity 0.2s, transform 0.2s; }
-.fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(-4px); }
-
-.fade-info-enter-active, .fade-info-leave-active { transition: opacity 0.2s, transform 0.2s; }
-.fade-info-enter-from, .fade-info-leave-to { opacity: 0; transform: translateY(-4px); }
-
-.collapse-enter-active, .collapse-leave-active { transition: opacity 0.25s, max-height 0.35s ease; max-height: 600px; overflow: hidden; }
-.collapse-enter-from, .collapse-leave-to { opacity: 0; max-height: 0; }
+.field-error {
+  border-color: var(--wine) !important;
+}
+.collapse-enter-active, .collapse-leave-active {
+  transition: max-height 0.35s ease, opacity 0.25s;
+  max-height: 800px;
+}
+.collapse-enter-from, .collapse-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
 </style>

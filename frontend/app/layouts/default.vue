@@ -7,14 +7,15 @@ const api = useApi()
 
 const user = ref({ name: '', email: '' })
 const rol = ref('')
+const sidebarOpen = ref(false)
 
 const nav = computed(() => {
   const items = [
-    { label: 'Mis vacunas', icon: '▦', to: '/dashboard' },
-    { label: 'Mi información', icon: '⚙', to: '/settings' },
+    { label: 'Cartilla',     to: '/dashboard', num: '01' },
+    { label: 'Mi informacion', to: '/settings', num: '02' },
   ]
   if (esRolAdmin(rol.value)) {
-    items.push({ label: 'Administración', icon: '◆', to: '/admin' })
+    items.push({ label: 'Administracion', to: '/admin', num: '03' })
   }
   return items
 })
@@ -24,6 +25,7 @@ function logout() {
   localStorage.removeItem('curp')
   localStorage.removeItem('rol')
   localStorage.removeItem('userName')
+  localStorage.removeItem('noRegistrado')
   router.push('/login')
 }
 
@@ -36,9 +38,7 @@ onMounted(async () => {
   rol.value = normalizarRolParaStorage(localStorage.getItem('rol'))
 
   const storedName = localStorage.getItem('userName')
-  if (storedName) {
-    user.value.name = storedName
-  }
+  if (storedName) user.value.name = storedName
 
   const curp = localStorage.getItem('curp')
   if (curp) {
@@ -64,198 +64,119 @@ onMounted(async () => {
     user.value.name = 'Usuario'
   }
 })
+
+const initials = computed(() => {
+  const n = user.value.name || '?'
+  const parts = n.split(' ').filter(Boolean)
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+  return n.slice(0, 2).toUpperCase()
+})
 </script>
 
 <template>
-  <div class="shell">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="flex justify-center">
+  <div class="min-h-screen flex" style="background: var(--paper)">
+
+    <!-- Overlay movil -->
+    <transition name="fade">
+      <div
+        v-if="sidebarOpen"
+        class="fixed inset-0 z-30 lg:hidden"
+        style="background: rgba(28,27,23,0.5)"
+        @click="sidebarOpen = false"
+      />
+    </transition>
+
+    <!-- Sidebar editorial -->
+    <aside
+      class="fixed lg:sticky top-0 left-0 z-40 h-screen w-[280px] flex flex-col transition-transform duration-300 lg:translate-x-0"
+      :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+      style="background: var(--moss-dark); color: var(--paper); border-right: 1px solid rgba(245,241,232,0.08)"
+    >
+      <!-- Brand -->
+      <div class="px-7 pt-7 pb-6">
+        <div class="flex items-center gap-3">
+          <img src="/pia-logo.png" alt="PIA-IA" class="h-9 w-auto" style="filter: brightness(0) invert(1)" />
+          <div>
+            <p class="font-display text-base leading-none" style="font-weight: 500">PIA-IA</p>
+            <p class="text-[10px] mt-1.5 opacity-60" style="font-family: var(--font-mono); letter-spacing: 0.14em">CARTILLA DIGITAL</p>
+          </div>
+        </div>
       </div>
 
-      <nav class="nav">
+      <div class="h-px mx-7 mb-6" style="background: rgba(245,241,232,0.1)" />
+
+      <!-- Nav -->
+      <nav class="flex-1 px-7 space-y-1 overflow-y-auto">
+        <p class="eyebrow mb-3" style="color: rgba(245,241,232,0.5)">Secciones</p>
+
         <NuxtLink
           v-for="item in nav"
           :key="item.to"
           :to="item.to"
-          class="nav-item"
-          :class="{ active: route.path === item.to }"
+          class="group flex items-center justify-between py-3 transition-colors relative"
+          :style="route.path === item.to ? 'color: var(--paper)' : 'color: rgba(245,241,232,0.55)'"
+          @click="sidebarOpen = false"
         >
-          <span class="nav-icon">{{ item.icon }}</span>
-          <span>{{ item.label }}</span>
+          <span class="flex items-center gap-4">
+            <span class="font-mono text-[11px] opacity-50">{{ item.num }}</span>
+            <span class="font-display text-lg" style="font-weight: 400">{{ item.label }}</span>
+          </span>
+          <span v-if="route.path === item.to" class="font-mono text-sm">→</span>
         </NuxtLink>
       </nav>
 
-      <div class="sidebar-footer">
-        <div class="user-card">
-          <div class="avatar">{{ (user.name || '?')[0] }}</div>
-          <div class="user-info">
-            <p class="user-name">{{ user.name || 'Usuario' }}</p>
+      <!-- Footer usuario -->
+      <div class="px-7 py-6 mt-4" style="border-top: 1px solid rgba(245,241,232,0.1)">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 flex items-center justify-center font-mono text-xs" style="background: var(--moss); color: var(--paper); font-weight: 600; letter-spacing: 0.05em">
+            {{ initials }}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm truncate" style="font-weight: 500">{{ user.name || 'Usuario' }}</p>
+            <p class="text-[11px] opacity-60 uppercase tracking-wider" style="font-family: var(--font-mono)">
+              {{ esRolAdmin(rol) ? 'Administrador' : 'Asegurado' }}
+            </p>
           </div>
         </div>
-        <button type="button" class="logout-btn" title="Cerrar sesión" @click="logout">
-          ⎋
+        <button
+          type="button"
+          class="text-[11px] flex items-center gap-2 hover:opacity-100 transition-opacity"
+          style="font-family: var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: rgba(245,241,232,0.55)"
+          @click="logout"
+        >
+          <span>← Cerrar sesion</span>
         </button>
       </div>
     </aside>
 
-    <!-- Main content -->
-    <main class="content">
-      <slot />
-    </main>
+    <!-- Main -->
+    <div class="flex-1 flex flex-col min-w-0">
+
+      <!-- Top bar movil -->
+      <header class="lg:hidden sticky top-0 z-20 flex items-center justify-between px-5 py-3.5"
+        style="background: var(--paper); border-bottom: 1px solid var(--border)">
+        <button
+          type="button"
+          class="flex items-center gap-2 text-sm transition-opacity"
+          style="font-family: var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase"
+          @click="sidebarOpen = true"
+        >
+          <span class="text-lg">≡</span>
+          <span>Menu</span>
+        </button>
+        <img src="/pia-logo.png" alt="PIA-IA" class="h-7 w-auto" />
+        <div class="w-12" />
+      </header>
+
+      <!-- Content -->
+      <main class="flex-1">
+        <slot />
+      </main>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.shell {
-  display: flex;
-  min-height: 100vh;
-}
-
-/* ── Sidebar ── */
-.sidebar {
-  width: 230px;
-  flex-shrink: 0;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  padding: 28px 16px;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 8px;
-  margin-bottom: 36px;
-}
-
-.brand-icon {
-  font-size: 22px;
-  color: var(--accent);
-}
-
-.brand-name {
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: var(--text);
-}
-
-.nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 11px 14px;
-  border-radius: var(--radius);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--muted);
-  transition: all 0.18s;
-  letter-spacing: 0.02em;
-}
-
-.nav-item:hover {
-  background: var(--border);
-  color: var(--text);
-}
-
-.nav-item.active {
-  background: rgba(108, 99, 255, 0.15);
-  color: var(--accent);
-}
-
-.nav-icon {
-  font-size: 16px;
-  width: 20px;
-  text-align: center;
-}
-
-/* ── Sidebar footer ── */
-.sidebar-footer {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border-top: 1px solid var(--border);
-  padding-top: 20px;
-}
-
-.user-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
-}
-
-.avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-.user-info {
-  min-width: 0;
-}
-
-.user-name {
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.user-role {
-  font-size: 11px;
-  color: var(--muted);
-  font-family: var(--font-mono);
-}
-
-.logout-btn {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.18s;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-
-.logout-btn:hover {
-  border-color: var(--accent-2);
-  color: var(--accent-2);
-}
-
-/* ── Content area ── */
-.content {
-  flex: 1;
-  overflow-y: auto;
-  background: var(--bg);
-}
+.fade-enter-active, .fade-leave-active { transition: opacity 0.25s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>

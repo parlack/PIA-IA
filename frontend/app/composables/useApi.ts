@@ -1,104 +1,106 @@
-// app/composables/useApi.ts
-// Wrapper central para todas las llamadas al backend FastAPI
-
-const BASE = "http://localhost:8000"
+/**
+ * Facade central. Mantiene la firma original para no romper paginas existentes.
+ * La logica esta separada en clientes de dominio dentro de composables/api/*.
+ */
+import type {
+  UsuarioPublico,
+  UsuarioUpdatePayload,
+  AdminCrearUsuarioPayload,
+  UsuarioListadoAdmin,
+  HistorialResponse,
+  VacunaCatalogo,
+  AlertasResponse,
+  RegistrarDosisPayload,
+  Mensaje,
+  EnviarMensajePayload,
+  AdminStats,
+  UnidadMedica,
+} from '~/types'
 
 export const useApi = () => {
-  const call = async <T>(
-    method: "GET" | "POST" | "PATCH" | "DELETE",
-    path: string,
-    body?: unknown
-  ): Promise<T> => {
-    const res = await fetch(`${BASE}${path}`, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Error desconocido" }))
-      const d = err.detail
-      const msg = Array.isArray(d)
-        ? d.map((x: { msg?: string }) => x?.msg || String(x)).join("; ")
-        : (typeof d === "string" ? d : "Error en el servidor")
-      throw new Error(msg)
-    }
-    return res.json()
-  }
+  const http = useHttp()
 
   return {
     // Auth
     login: (curp: string, contrasena?: string) =>
-      call("POST", "/auth/login", { curp, contrasena }),
+      http.post('/auth/login', { curp, contrasena }),
 
     setPassword: (curp: string, contrasena: string) =>
-      call("POST", "/auth/set-password", { curp, contrasena }),
+      http.post('/auth/set-password', { curp, contrasena }),
 
     // Usuario
     getUsuario: (curp: string) =>
-      call("GET", `/usuarios/${curp}`),
+      http.get<UsuarioPublico>(`/usuarios/${curp}`),
 
-    updateUsuario: (curp: string, data: object) =>
-      call("PATCH", `/usuarios/${curp}`, data),
+    updateUsuario: (curp: string, data: UsuarioUpdatePayload) =>
+      http.patch(`/usuarios/${curp}`, data),
 
     // Vacunas
     getHistorial: (curp: string) =>
-      call("GET", `/usuarios/${curp}/vacunas`),
+      http.get<HistorialResponse>(`/usuarios/${curp}/vacunas`),
 
-    registrarDosis: (data: object) =>
-      call("POST", "/vacunas/historial", data),
+    registrarDosis: (data: RegistrarDosisPayload) =>
+      http.post('/vacunas/historial', data),
 
-    updateDosis: (id: number, data: object) =>
-      call("PATCH", `/vacunas/historial/${id}`, data),
+    updateDosis: (id: number, data: Record<string, unknown>) =>
+      http.patch(`/vacunas/historial/${id}`, data),
 
     deleteDosis: (id: number) =>
-      call("DELETE", `/vacunas/historial/${id}`),
+      http.delete(`/vacunas/historial/${id}`),
 
     getCatalogo: () =>
-      call("GET", "/vacunas/catalogo"),
+      http.get<VacunaCatalogo[]>('/vacunas/catalogo'),
 
-    crearVacunaCatalogo: (data: object) =>
-      call("POST", "/vacunas/catalogo", data),
+    crearVacunaCatalogo: (data: Partial<VacunaCatalogo>) =>
+      http.post('/vacunas/catalogo', data),
 
-    updateVacunaCatalogo: (id: number, data: object) =>
-      call("PATCH", `/vacunas/catalogo/${id}`, data),
+    updateVacunaCatalogo: (id: number, data: Partial<VacunaCatalogo>) =>
+      http.patch(`/vacunas/catalogo/${id}`, data),
 
     deleteVacunaCatalogo: (id: number) =>
-      call("DELETE", `/vacunas/catalogo/${id}`),
+      http.delete(`/vacunas/catalogo/${id}`),
 
-    // Buzón
+    // Buzon
     getMensajes: (curp: string) =>
-      call("GET", `/buzon/${curp}`),
+      http.get<Mensaje[]>(`/buzon/${curp}`),
 
-    enviarMensaje: (data: object) =>
-      call("POST", "/buzon", data),
+    enviarMensaje: (data: EnviarMensajePayload) =>
+      http.post('/buzon', data),
 
     marcarLeido: (id: number) =>
-      call("PATCH", `/buzon/${id}/leer`, {}),
+      http.patch(`/buzon/${id}/leer`, {}),
 
     deleteMensaje: (id: number) =>
-      call("DELETE", `/buzon/${id}`),
+      http.delete(`/buzon/${id}`),
 
     // Admin
     adminGetUsuarios: (params?: { rol?: string; search?: string; unidad_medica_id?: number }) => {
       const sp = new URLSearchParams()
-      if (params?.rol) sp.set("rol", params.rol)
-      if (params?.search) sp.set("search", params.search)
-      if (params?.unidad_medica_id != null) sp.set("unidad_medica_id", String(params.unidad_medica_id))
+      if (params?.rol) sp.set('rol', params.rol)
+      if (params?.search) sp.set('search', params.search)
+      if (params?.unidad_medica_id != null) sp.set('unidad_medica_id', String(params.unidad_medica_id))
       const qs = sp.toString()
-      return call("GET", `/admin/usuarios${qs ? "?" + qs : ""}`)
+      return http.get<UsuarioListadoAdmin[]>(`/admin/usuarios${qs ? '?' + qs : ''}`)
     },
 
+    adminCrearUsuario: (data: AdminCrearUsuarioPayload) =>
+      http.post('/admin/usuarios', data),
+
     adminDeleteUsuario: (curp: string) =>
-      call("DELETE", `/admin/usuarios/${curp}`),
+      http.delete(`/admin/usuarios/${curp}`),
 
     adminGetStats: () =>
-      call("GET", "/admin/stats"),
+      http.get<AdminStats>('/admin/stats'),
 
     adminGetVacunasUsuario: (curp: string) =>
-      call("GET", `/admin/usuarios/${curp}/vacunas`),
+      http.get<HistorialResponse>(`/admin/usuarios/${curp}/vacunas`),
+
+    // Alertas
+    getAlertas: (curp: string) =>
+      http.get<AlertasResponse>(`/alertas/${curp}`),
 
     // Unidades
     getUnidades: () =>
-      call("GET", "/unidades"),
+      http.get<UnidadMedica[]>('/unidades'),
   }
 }

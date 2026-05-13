@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "PIA-IA Cartilla",
+    "slug": "pia-ia-cartilla",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "piaia",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#0E5037",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "mx.piaia.cartilla"
+    },
+    "android": {
+      "package": "mx.piaia.cartilla",
+      "adaptiveIcon": {
+        "backgroundColor": "#0E5037"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "https://fonts.gstatic.com/s/fraunces/v37/6NV3a2nq5dKE6IFKqLJ5VOcqkqOaJgMUHfQOyYgmGY2.woff2",
+            "https://fonts.gstatic.com/s/ibmplexsans/v19/zYXgKVElMYYaJe8bpLHnCwDKjQ76AIZNk.woff2"
+          ]
+        }
+      ]
+    ],
+    "experiments": { "typedRoutes": true }
+  }
+}
