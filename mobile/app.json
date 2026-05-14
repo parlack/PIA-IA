@@ -7,21 +7,31 @@
     "icon": "./assets/icon.png",
     "scheme": "piaia",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
+      "image": "./assets/splash-icon.png",
       "backgroundColor": "#0E5037",
       "resizeMode": "contain"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "mx.piaia.cartilla"
+      "bundleIdentifier": "mx.piaia.cartilla",
+      "infoPlist": {
+        "NSCameraUsageDescription": "PIA-IA usa la camara para escanear el codigo QR del ciudadano y registrar dosis aplicadas."
+      }
     },
     "android": {
       "package": "mx.piaia.cartilla",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0E5037"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "bundler": "metro",
@@ -29,16 +39,19 @@
     },
     "plugins": [
       "expo-router",
+      "expo-asset",
+      "expo-font",
       [
-        "expo-font",
+        "expo-camera",
         {
-          "fonts": [
-            "https://fonts.gstatic.com/s/fraunces/v37/6NV3a2nq5dKE6IFKqLJ5VOcqkqOaJgMUHfQOyYgmGY2.woff2",
-            "https://fonts.gstatic.com/s/ibmplexsans/v19/zYXgKVElMYYaJe8bpLHnCwDKjQ76AIZNk.woff2"
-          ]
+          "cameraPermission": "PIA-IA usa la camara para escanear el codigo QR del ciudadano y registrar dosis aplicadas."
         }
-      ]
+      ],
+      "expo-video",
+      "expo-sharing"
     ],
-    "experiments": { "typedRoutes": true }
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }

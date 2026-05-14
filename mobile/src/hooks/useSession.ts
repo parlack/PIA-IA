@@ -2,6 +2,7 @@
  * Hook unico para manejar la sesion. Los screens NO deben tocar AsyncStorage.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { esRolAdmin, esRolMedico, normalizarRolParaStorage } from '@/utils/rol'
 
 const KEYS = {
   auth: 'auth',
@@ -32,6 +33,18 @@ export const sessionStore = {
     return await getItem(KEYS.userName)
   },
 
+  async getRol() {
+    return normalizarRolParaStorage(await getItem(KEYS.rol))
+  },
+
+  async isAdmin() {
+    return esRolAdmin(await getItem(KEYS.rol))
+  },
+
+  async isMedico() {
+    return esRolMedico(await getItem(KEYS.rol))
+  },
+
   async isAuthenticated() {
     return (await getItem(KEYS.auth)) === 'true'
   },
@@ -55,7 +68,7 @@ export const sessionStore = {
   }) {
     await setItem(KEYS.auth, payload.autenticado ? 'true' : 'false')
     await setItem(KEYS.curp, payload.curp)
-    await setItem(KEYS.rol, payload.rol ?? 'usuario')
+    await setItem(KEYS.rol, normalizarRolParaStorage(payload.rol ?? 'usuario'))
     const display = [payload.nombre, payload.apellido_paterno].filter(Boolean).join(' ').trim()
     if (display) await setItem(KEYS.userName, display)
     await AsyncStorage.removeItem(KEYS.noRegistrado)

@@ -17,6 +17,10 @@ export function Tabs<T extends string>({ value, options, onChange }: TabsProps<T
           <Pressable
             key={opt.key}
             onPress={() => onChange(opt.key)}
+            accessibilityRole="tab"
+            accessibilityLabel={opt.label}
+            accessibilityState={{ selected: active }}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
             style={{ paddingBottom: spacing.sm + 2, marginBottom: -1, position: 'relative' }}
           >
             <Text variant="body" bold color={active ? 'ink' : 'muted'}>{opt.label}</Text>

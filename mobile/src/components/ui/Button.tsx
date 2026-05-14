@@ -11,7 +11,7 @@ interface Props extends Omit<PressableProps, 'children'> {
   arrow?: boolean
 }
 
-export function Button({ label, variant = 'primary', loading, arrow, disabled, style, ...rest }: Props) {
+export function Button({ label, variant = 'primary', loading, arrow, disabled, style, accessibilityLabel, ...rest }: Props) {
   const isPrimary = variant === 'primary'
   const isDisabled = disabled || loading
 
@@ -19,6 +19,9 @@ export function Button({ label, variant = 'primary', loading, arrow, disabled, s
     <Pressable
       {...rest}
       disabled={isDisabled}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={{ disabled: isDisabled, busy: !!loading }}
       style={({ pressed }) => [
         {
           backgroundColor: isPrimary ? colors.moss : 'transparent',

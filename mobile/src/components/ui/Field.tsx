@@ -17,7 +17,7 @@ export function Field({ label, mono, error, style, onFocus, onBlur, ...rest }: P
       {label ? <Text variant="eyebrow" color="muted" style={{ marginBottom: spacing.xs + 2 }}>{label}</Text> : null}
       <TextInput
         {...rest}
-        placeholderTextColor={colors.muted2}
+        placeholderTextColor={colors.muted}
         onFocus={(e) => { setFocused(true); onFocus?.(e) }}
         onBlur={(e) => { setFocused(false); onBlur?.(e) }}
         style={[

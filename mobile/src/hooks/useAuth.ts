@@ -2,18 +2,26 @@ import { useState } from 'react'
 import { authApi } from '@/api/auth'
 import { sessionStore } from './useSession'
 import { normalizarCurp, esCurpValida } from '@/utils/curp'
+import { normalizarRolParaStorage } from '@/utils/rol'
 import type { ApiError } from '@/api/client'
+
+export type LoginEstado = 'autenticado' | 'basico' | 'no_registrado' | 'error'
+
+export interface LoginResultado {
+  estado: LoginEstado
+  rol: string
+}
 
 export function useAuth() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  async function login(curpRaw: string, password?: string): Promise<'autenticado' | 'basico' | 'no_registrado' | 'error'> {
+  async function login(curpRaw: string, password?: string): Promise<LoginResultado> {
     setError('')
     const curp = normalizarCurp(curpRaw)
     if (!esCurpValida(curp)) {
       setError('Formato de CURP invalido.')
-      return 'error'
+      return { estado: 'error', rol: 'usuario' }
     }
     setLoading(true)
     try {
@@ -25,15 +33,18 @@ export function useAuth() {
         apellido_paterno: res.apellido_paterno,
         rol: res.rol,
       })
-      return res.autenticado ? 'autenticado' : 'basico'
+      return {
+        estado: res.autenticado ? 'autenticado' : 'basico',
+        rol: normalizarRolParaStorage(res.rol),
+      }
     } catch (e) {
       const apiErr = e as ApiError
       if (apiErr.data?.registrable) {
         await sessionStore.persistNoRegistrado(curp)
-        return 'no_registrado'
+        return { estado: 'no_registrado', rol: 'usuario' }
       }
       setError(apiErr.message || 'No se pudo iniciar sesion.')
-      return 'error'
+      return { estado: 'error', rol: 'usuario' }
     } finally {
       setLoading(false)
     }
